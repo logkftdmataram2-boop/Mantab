@@ -1,12 +1,27 @@
 import pandas as pd
 import streamlit as st
+import sqlite3
 
 st.set_page_config(page_title="Monitoring Produk", layout="wide")
 
-st.title("📊 Monitoring Pemakaian Produk")
+# =========================
+# DATABASE
+# =========================
+conn = sqlite3.connect("data.db", check_same_thread=False)
+c = conn.cursor()
+
+# buat tabel jika belum ada
+c.execute('''
+CREATE TABLE IF NOT EXISTS data (
+    tanggal TEXT,
+    pelanggan TEXT,
+    produk TEXT,
+    qty INTEGER
+)
+''')
 
 # =========================
-# DATABASE USER SEDERHANA
+# USER LOGIN
 # =========================
 users = {
     "admin": {"password": "123", "role": "admin"},
@@ -14,30 +29,20 @@ users = {
     "user2": {"password": "123", "role": "user"},
 }
 
-# =========================
-# LOGIN
-# =========================
 st.sidebar.header("Login")
 
 username = st.sidebar.text_input("Username")
 password = st.sidebar.text_input("Password", type="password")
 
 role = None
-
 if username in users and users[username]["password"] == password:
     role = users[username]["role"]
-    st.sidebar.success(f"Login sebagai {role.upper()}")
+    st.sidebar.success(f"Login sebagai {role}")
 else:
     st.sidebar.warning("Masukkan username & password")
 
 # =========================
-# SESSION DATA
-# =========================
-if "data" not in st.session_state:
-    st.session_state.data = None
-
-# =========================
-# UPLOAD (HANYA ADMIN)
+# UPLOAD EXCEL (ADMIN)
 # =========================
 if role == "admin":
     file = st.sidebar.file_uploader("Upload Excel", type=["xlsx"])
@@ -45,50 +50,47 @@ if role == "admin":
     if file:
         df = pd.read_excel(file)
 
-        required_cols = ["Tanggal", "Nama Pelanggan", "Produk", "Qty"]
-
-        if not all(col in df.columns for col in required_cols):
-            st.error("Format kolom salah!")
-        else:
+        if all(col in df.columns for col in ["Tanggal","Nama Pelanggan","Produk","Qty"]):
             df["Tanggal"] = pd.to_datetime(df["Tanggal"])
-            df["Bulan"] = df["Tanggal"].dt.to_period("M").astype(str)
-            df["Triwulan"] = df["Tanggal"].dt.to_period("Q").astype(str)
 
-            st.session_state.data = df
-            st.success("Data berhasil diupload!")
+            # simpan ke database
+            for _, row in df.iterrows():
+                c.execute("INSERT INTO data VALUES (?,?,?,?)",
+                          (str(row["Tanggal"]), row["Nama Pelanggan"], row["Produk"], int(row["Qty"])))
+            conn.commit()
+
+            st.success("Data berhasil disimpan ke database!")
+        else:
+            st.error("Format Excel salah!")
 
 # =========================
-# TAMPILKAN DATA
+# AMBIL DATA DARI DATABASE
 # =========================
-df = st.session_state.data
+df = pd.read_sql("SELECT * FROM data", conn)
 
-if df is not None and role is not None:
+if not df.empty and role is not None:
 
+    df["tanggal"] = pd.to_datetime(df["tanggal"])
+    df["Bulan"] = df["tanggal"].dt.to_period("M").astype(str)
+    df["Triwulan"] = df["tanggal"].dt.to_period("Q").astype(str)
+
+    st.title("📊 Monitoring Pemakaian Produk")
+
+    # FILTER
     st.sidebar.header("Filter")
 
-    pelanggan = st.sidebar.selectbox(
-        "Pelanggan", ["Semua"] + list(df["Nama Pelanggan"].unique())
-    )
-
-    produk = st.sidebar.selectbox(
-        "Produk", ["Semua"] + list(df["Produk"].unique())
-    )
-
-    bulan = st.sidebar.selectbox(
-        "Bulan", ["Semua"] + list(df["Bulan"].unique())
-    )
-
-    triwulan = st.sidebar.selectbox(
-        "Triwulan", ["Semua"] + list(df["Triwulan"].unique())
-    )
+    pelanggan = st.sidebar.selectbox("Pelanggan", ["Semua"] + list(df["pelanggan"].unique()))
+    produk = st.sidebar.selectbox("Produk", ["Semua"] + list(df["produk"].unique()))
+    bulan = st.sidebar.selectbox("Bulan", ["Semua"] + list(df["Bulan"].unique()))
+    triwulan = st.sidebar.selectbox("Triwulan", ["Semua"] + list(df["Triwulan"].unique()))
 
     filtered = df.copy()
 
     if pelanggan != "Semua":
-        filtered = filtered[filtered["Nama Pelanggan"] == pelanggan]
+        filtered = filtered[filtered["pelanggan"] == pelanggan]
 
     if produk != "Semua":
-        filtered = filtered[filtered["Produk"] == produk]
+        filtered = filtered[filtered["produk"] == produk]
 
     if bulan != "Semua":
         filtered = filtered[filtered["Bulan"] == bulan]
@@ -96,20 +98,22 @@ if df is not None and role is not None:
     if triwulan != "Semua":
         filtered = filtered[filtered["Triwulan"] == triwulan]
 
+    # DATA
     st.subheader("📋 Data")
-    st.dataframe(filtered, use_container_width=True)
+    st.dataframe(filtered)
 
-    st.metric("Total Pemakaian", filtered["Qty"].sum())
+    # TOTAL
+    st.metric("Total Pemakaian", filtered["qty"].sum())
 
-    # Rekap Bulanan
+    # BULAN
     st.subheader("📅 Pemakaian per Bulan")
-    per_bulan = filtered.groupby(["Bulan", "Produk"])["Qty"].sum().reset_index()
-    st.bar_chart(per_bulan.pivot(index="Bulan", columns="Produk", values="Qty"))
+    per_bulan = filtered.groupby(["Bulan","produk"])["qty"].sum().reset_index()
+    st.bar_chart(per_bulan.pivot(index="Bulan", columns="produk", values="qty"))
 
-    # Rekap Triwulan
+    # TRIWULAN
     st.subheader("📆 Pemakaian per Triwulan")
-    per_triwulan = filtered.groupby(["Triwulan", "Produk"])["Qty"].sum().reset_index()
-    st.bar_chart(per_triwulan.pivot(index="Triwulan", columns="Produk", values="Qty"))
+    per_tri = filtered.groupby(["Triwulan","produk"])["qty"].sum().reset_index()
+    st.bar_chart(per_tri.pivot(index="Triwulan", columns="produk", values="qty"))
 
 else:
-    st.info("Silakan login terlebih dahulu atau tunggu admin upload data.")
+    st.info("Belum ada data / silakan login")
