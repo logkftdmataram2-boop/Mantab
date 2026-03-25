@@ -6,21 +6,32 @@ st.set_page_config(page_title="Monitoring Produk", layout="wide")
 st.title("📊 Monitoring Pemakaian Produk")
 
 # =========================
-# LOGIN SEDERHANA
+# DATABASE USER SEDERHANA
+# =========================
+users = {
+    "admin": {"password": "123", "role": "admin"},
+    "user1": {"password": "123", "role": "user"},
+    "user2": {"password": "123", "role": "user"},
+}
+
+# =========================
+# LOGIN
 # =========================
 st.sidebar.header("Login")
 
-user = st.sidebar.text_input("Username")
+username = st.sidebar.text_input("Username")
 password = st.sidebar.text_input("Password", type="password")
 
-# akun sederhana
-ADMIN_USER = "admin"
-ADMIN_PASS = "123"
+role = None
 
-is_admin = (user == ADMIN_USER and password == ADMIN_PASS)
+if username in users and users[username]["password"] == password:
+    role = users[username]["role"]
+    st.sidebar.success(f"Login sebagai {role.upper()}")
+else:
+    st.sidebar.warning("Masukkan username & password")
 
 # =========================
-# SESSION DATA (biar bisa dilihat user lain)
+# SESSION DATA
 # =========================
 if "data" not in st.session_state:
     st.session_state.data = None
@@ -28,9 +39,7 @@ if "data" not in st.session_state:
 # =========================
 # UPLOAD (HANYA ADMIN)
 # =========================
-if is_admin:
-    st.sidebar.success("Login sebagai ADMIN")
-
+if role == "admin":
     file = st.sidebar.file_uploader("Upload Excel", type=["xlsx"])
 
     if file:
@@ -48,15 +57,12 @@ if is_admin:
             st.session_state.data = df
             st.success("Data berhasil diupload!")
 
-else:
-    st.sidebar.warning("Login sebagai USER (hanya lihat data)")
-
 # =========================
 # TAMPILKAN DATA
 # =========================
 df = st.session_state.data
 
-if df is not None:
+if df is not None and role is not None:
 
     st.sidebar.header("Filter")
 
@@ -90,44 +96,20 @@ if df is not None:
     if triwulan != "Semua":
         filtered = filtered[filtered["Triwulan"] == triwulan]
 
-    # =========================
-    # DATA
-    # =========================
     st.subheader("📋 Data")
     st.dataframe(filtered, use_container_width=True)
 
-    # =========================
-    # TOTAL
-    # =========================
     st.metric("Total Pemakaian", filtered["Qty"].sum())
 
-    # =========================
-    # PEMAKAIAN PER BULAN
-    # =========================
+    # Rekap Bulanan
     st.subheader("📅 Pemakaian per Bulan")
-
     per_bulan = filtered.groupby(["Bulan", "Produk"])["Qty"].sum().reset_index()
-
-    st.dataframe(per_bulan, use_container_width=True)
     st.bar_chart(per_bulan.pivot(index="Bulan", columns="Produk", values="Qty"))
 
-    # =========================
-    # PEMAKAIAN PER TRIWULAN
-    # =========================
+    # Rekap Triwulan
     st.subheader("📆 Pemakaian per Triwulan")
-
     per_triwulan = filtered.groupby(["Triwulan", "Produk"])["Qty"].sum().reset_index()
-
-    st.dataframe(per_triwulan, use_container_width=True)
     st.bar_chart(per_triwulan.pivot(index="Triwulan", columns="Produk", values="Qty"))
 
-    # =========================
-    # DOWNLOAD
-    # =========================
-    st.subheader("⬇️ Download Data")
-
-    csv = filtered.to_csv(index=False).encode("utf-8")
-    st.download_button("Download CSV", csv, "data.csv", "text/csv")
-
 else:
-    st.info("Belum ada data. Silakan admin upload file.")
+    st.info("Silakan login terlebih dahulu atau tunggu admin upload data.")
