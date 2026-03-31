@@ -79,8 +79,8 @@ users = {
 }
 
 if not st.session_state.login:
-    st.image("Header.png", width=150)
-    st.title("Wajarlah KF Login")
+    st.image("Header.png", width=600)
+    st.title("yull LOGIN !")
 
     u = st.text_input("Username")
     p = st.text_input("Password", type="password")
