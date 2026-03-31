@@ -7,7 +7,7 @@ from io import BytesIO
 
 st.set_page_config(
     page_title="WAJARLAH. KF",
-    page_icon="Header.png",  # bisa emoji atau file
+    page_icon="Wajarlah. KF.png",  # bisa emoji atau file
     layout="wide"
 )
 
@@ -79,7 +79,7 @@ users = {
 }
 
 if not st.session_state.login:
-    st.image("Wajarlah. KF.png", width=150)
+    st.image("Header.png", width=150)
     st.title("Wajarlah KF Login")
 
     u = st.text_input("Username")
