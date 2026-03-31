@@ -76,7 +76,8 @@ if "login" not in st.session_state:
 users={"admin":{"password":"123","role":"admin"},"user1":{"password":"123","role":"user"}}
 
 if not st.session_state.login:
-    st.title(""Wajarlah. KF.png" Login")
+   st.image("Wajarlah. KF.png", width=150)
+   st.title("Wajarlah. KF Login")
     u=st.text_input("Username")
     p=st.text_input("Password",type="password")
 
