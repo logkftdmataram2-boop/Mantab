@@ -950,7 +950,7 @@ if menu=="Output":
     4,
     "Tidak terdapat lonjakan jumlah dan frekuensi pesanan yang tidak wajar berdasarkan riwayat pesanan sebelumnya",
     lonjakan,
-    f"{qty} vs {round(avg,2)}"
+    f"Jumlah permintaan sebanyak {qty} sedangkan rata-rata per bulannya adalah {round(avg,2)}"
 )
     tampil_manual(5,"Jenis obat sesuai kualifikasi fasilitas")
     tampil_manual(6,"Narkotika/Psikotropika/Prekursor/OOT sesuai kebutuhan")
@@ -1007,7 +1007,7 @@ if menu=="Output":
         elements.append(garis)
 
         elements.append(Spacer(1,6))
-        elements.append(Paragraph("<b>FORM Analisa</b>", styles["Title"]))
+        elements.append(Paragraph("<b>FORM ANALISA KEWAJARAN</b>", styles["Title"]))
         elements.append(Spacer(1,6))
 
         # INFO
