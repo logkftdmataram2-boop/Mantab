@@ -70,24 +70,29 @@ conn.commit()
 # LOGIN
 # =========================
 if "login" not in st.session_state:
-    st.session_state.login=False
-    st.session_state.role=None
+    st.session_state.login = False
+    st.session_state.role = None
 
-users={"admin":{"password":"123","role":"admin"},"user1":{"password":"123","role":"user"}}
+users = {
+    "admin": {"password": "123", "role": "admin"},
+    "user1": {"password": "123", "role": "user"}
+}
 
 if not st.session_state.login:
-   st.image("Wajarlah. KF.png", width=150)
-   st.title("Wajarlah. KF Login")
-    u=st.text_input("Username")
-    p=st.text_input("Password",type="password")
+    st.image("Wajarlah. KF.png", width=150)
+    st.title("Wajarlah KF Login")
+
+    u = st.text_input("Username")
+    p = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if u in users and users[u]["password"]==p:
-            st.session_state.login=True
-            st.session_state.role=users[u]["role"]
+        if u in users and users[u]["password"] == p:
+            st.session_state.login = True
+            st.session_state.role = users[u]["role"]
             st.rerun()
         else:
             st.error("Login gagal")
+
     st.stop()
 
 st.sidebar.success(f"Login: {st.session_state.role}")
