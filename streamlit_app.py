@@ -104,7 +104,7 @@ if st.sidebar.button("Logout"):
 
 menu = st.sidebar.radio(
     "Menu",
-    ["Monitoring Pemakaian","analisa","Approval","Output"] if st.session_state.role=="admin"
+    ["Monitoring Pemakaian","Analisa Kewajaran","Approval","Output"] if st.session_state.role=="admin"
     else ["Monitoring Pemakaian","analisa"]
 )
 
@@ -245,7 +245,7 @@ if menu == "analisa":
     for col, typ in columns:
         ensure_column(conn,"analisa",col,typ)
 
-    st.title("📋 analisa")
+    st.title("📋 ANALISA KEWAJARAN")
 
     # =========================
     # FUNGSI TAMPIL FILE (FIX ERROR GAMBAR)
