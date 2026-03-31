@@ -6,8 +6,8 @@ from datetime import datetime
 from io import BytesIO
 
 st.set_page_config(
-    page_title="Monitoring Analisa",
-    page_icon="Wajarlah. KF.png",  # bisa emoji atau file
+    page_title="WAJARLAH. KF",
+    page_icon="Header.png",  # bisa emoji atau file
     layout="wide"
 )
 
