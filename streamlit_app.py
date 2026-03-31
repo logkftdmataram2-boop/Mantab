@@ -76,11 +76,12 @@ if "login" not in st.session_state:
 users = {
     "admin": {"password": "123", "role": "admin"},
     "user1": {"password": "123", "role": "user"}
+    "user2": {"password": "123", "role": "user"}
 }
 
 if not st.session_state.login:
-    st.image("Header.png", width=600)
-    st.title("yull LOGIN !")
+    st.image("Header.png", width=1000)
+    st.title("yukk LOGIN !")
 
     u = st.text_input("Username")
     p = st.text_input("Password", type="password")
@@ -103,7 +104,7 @@ if st.sidebar.button("Logout"):
 
 menu = st.sidebar.radio(
     "Menu",
-    ["Monitoring","Analisa","Approval","Output"] if st.session_state.role=="admin"
+    ["Monitoring Pemakaian","Analisa Kewajaran","Approval","Output"] if st.session_state.role=="admin"
     else ["Monitoring","Analisa"]
 )
 
