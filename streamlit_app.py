@@ -49,7 +49,7 @@ conn = get_conn()
 # =========================
 def ensure(col, tipe):
     try:
-        conn.execute(f"ALTER TABLE analisa ADD COLUMN {col} {tipe}")
+        conn.execute(f"ALTER TABLE Analisa Kewajaran ADD COLUMN {col} {tipe}")
     except:
         pass
 
@@ -105,13 +105,13 @@ if st.sidebar.button("Logout"):
 menu = st.sidebar.radio(
     "Menu",
     ["Monitoring Pemakaian","Analisa Kewajaran","Approval","Output"] if st.session_state.role=="admin"
-    else ["Monitoring","Analisa"]
+    else ["Monitoring Pemakaian","Analisa Kewajaran"]
 )
 
 # =========================
 # MONITORING (FAST)
 # =========================
-if menu=="Monitoring":
+if menu=="Monitoring Pemakaian":
 
     st.title("📊 Monitoring Pemakaian Produk")
 
@@ -205,7 +205,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # =========================
 # MENU ANALISA FINAL (FULL FIX + VIEW FILE AMAN)
 # =========================
-if menu == "Analisa":
+if menu == "Analisa Kewajaran":
 
     import os
     import io
@@ -226,7 +226,7 @@ if menu == "Analisa":
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
             conn.commit()
 
-    conn.execute("CREATE TABLE IF NOT EXISTS analisa (id INTEGER PRIMARY KEY AUTOINCREMENT)")
+    conn.execute("CREATE TABLE IF NOT EXISTS Analisa Kewajaran (id INTEGER PRIMARY KEY AUTOINCREMENT)")
 
     columns = [
         ("tanggal","TEXT"),("pelanggan","TEXT"),("produk","TEXT"),
@@ -243,7 +243,7 @@ if menu == "Analisa":
     ]
 
     for col, typ in columns:
-        ensure_column(conn,"analisa",col,typ)
+        ensure_column(conn,"Analisa Kewajaran",col,typ)
 
     st.title("📋 Analisa Kewajaran")
 
@@ -443,7 +443,7 @@ if menu == "Analisa":
         if not errors:
 
             conn.execute("""
-            INSERT INTO analisa (
+            INSERT INTO Analisa Kewajaran (
                 tanggal,pelanggan,produk,
                 qty_order,avg_qty,ratio,score,kategori,status,
                 izin,alasan_izin,
@@ -478,14 +478,14 @@ if menu == "Analisa":
 # =========================
 st.subheader("📊 Data Analisa")
 
-df_analisa = pd.read_sql("SELECT * FROM analisa ORDER BY id DESC", conn)
+df_Analisa Kewajaran = pd.read_sql("SELECT * FROM Analisa Kewajaran ORDER BY id DESC", conn)
 
-if df_analisa.empty:
+if df_Analisa Kewajaran.empty:
     st.info("Belum ada data analisa")
 else:
 
-    selected_id = st.selectbox("Pilih Data Analisa", df_analisa["id"].tolist())
-    row = df_analisa[df_analisa["id"] == selected_id].iloc[0]
+    selected_id = st.selectbox("Pilih Data Analisa Kewajaran", df_Analisa Kewajaran["id"].tolist())
+    row = df_Analisa Kewajaran[df_Analisa Kewajaran["id"] == selected_id].iloc[0]
 
     status = row.get("status", "Pending")
 
@@ -548,7 +548,7 @@ else:
     # DELETE
     with col1:
         if st.button("🗑️ Hapus Data"):
-            conn.execute("DELETE FROM analisa WHERE id=?", (selected_id,))
+            conn.execute("DELETE FROM Analisa Kewajaran WHERE id=?", (selected_id,))
             conn.commit()
             st.success("Data berhasil dihapus")
             st.rerun()
@@ -651,7 +651,7 @@ else:
                     # UPDATE DB
                     # =========================
                     conn.execute("""
-                        UPDATE analisa SET
+                        UPDATE Analisa Kewajaran SET
                             qty_order=?,
                             no_pesanan=?,
                             ratio=?,
@@ -742,9 +742,9 @@ def tampilkan_file(file_path, nama="File"):
 # =========================
 if menu == "Approval":
 
-    st.title("✅ Approval + Preview Analisa")
+    st.title("✅ Approval + Preview Analisa Kewajaran")
 
-    df = pd.read_sql("SELECT * FROM analisa ORDER BY id DESC", conn)
+    df = pd.read_sql("SELECT * FROM Analisa Kewajaran ORDER BY id DESC", conn)
 
     if df.empty:
         st.warning("Tidak ada data")
@@ -824,7 +824,7 @@ if menu == "Approval":
                 with colA:
                     if st.button(f"✅ Approve {r['id']}", key=f"appr{r['id']}"):
                         conn.execute(
-                            "UPDATE analisa SET status='Approved' WHERE id=?",
+                            "UPDATE Analisa Kewajaran SET status='Approved' WHERE id=?",
                             (r["id"],)
                         )
                         conn.commit()
@@ -833,7 +833,7 @@ if menu == "Approval":
                 with colB:
                     if st.button(f"❌ Reject {r['id']}", key=f"rej{r['id']}"):
                         conn.execute(
-                            "UPDATE analisa SET status='Rejected' WHERE id=?",
+                            "UPDATE Analisa Kewajaran SET status='Rejected' WHERE id=?",
                             (r["id"],)
                         )
                         conn.commit()
@@ -858,7 +858,7 @@ if menu=="Output":
     PDF_FOLDER = "pdf"
     os.makedirs(PDF_FOLDER, exist_ok=True)
 
-    df = pd.read_sql("SELECT * FROM analisa WHERE status='Approved'", conn)
+    df = pd.read_sql("SELECT * FROM Analisa Kewajaran WHERE status='Approved'", conn)
 
     if df.empty:
         st.warning("Tidak ada data approved")
