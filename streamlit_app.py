@@ -5,7 +5,11 @@ import os
 from datetime import datetime
 from io import BytesIO
 
-st.set_page_config(page_title="Monitoring Produk", layout="wide")
+st.set_page_config(
+    page_title="Monitoring Analisa",
+    page_icon="Wajarlah. KF.png",  # bisa emoji atau file
+    layout="wide"
+)
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -72,7 +76,7 @@ if "login" not in st.session_state:
 users={"admin":{"password":"123","role":"admin"},"user1":{"password":"123","role":"user"}}
 
 if not st.session_state.login:
-    st.title("🔐 Login")
+    st.title(""Wajarlah. KF.png" Login")
     u=st.text_input("Username")
     p=st.text_input("Password",type="password")
 
