@@ -75,7 +75,7 @@ if "login" not in st.session_state:
 
 users = {
     "admin": {"password": "123", "role": "admin"},
-    "user1": {"password": "123", "role": "user"}
+    "user1": {"password": "123", "role": "user"},
     "user2": {"password": "123", "role": "user"}
 }
 
