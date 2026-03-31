@@ -104,7 +104,7 @@ if st.sidebar.button("Logout"):
 
 menu = st.sidebar.radio(
     "Menu",
-    ["Monitoring Pemakaian","Analisa Kewajaran","Approval","Output"] if st.session_state.role=="admin"
+    ["Monitoring Pemakaian","Analisa","Approval","Output"] if st.session_state.role=="admin"
     else ["Monitoring Pemakaian","analisa"]
 )
 
