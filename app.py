@@ -158,38 +158,62 @@ if st.sidebar.button("🚪 Logout"):
     st.rerun()
 
 
-# =========================
-# MENU
-# =========================
+# ============================================================
+# SIDEBAR MENU
+# ============================================================
+
+st.sidebar.markdown("---")
+
+st.sidebar.markdown(
+    f"""
+    <div style="
+        padding:10px;
+        border-radius:10px;
+        background-color:#f0f2f6;
+        text-align:center;
+        margin-bottom:10px;
+    ">
+        <b>👤 {st.session_state.role.upper()}</b>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 if st.session_state.role == "admin":
 
     menu = st.sidebar.radio(
-        "Menu",
+        "📂 NAVIGASI",
         [
-            "Monitoring",
-            "Analisa",
-            "Approval",
-            "Output",
-            "Penolakan Pesanan"
+            "📊 Monitoring",
+            "📋 Analisa",
+            "✅ Approval",
+            "📄 Output",
+            "❌ Penolakan Pesanan"
         ]
     )
 
 else:
 
     menu = st.sidebar.radio(
-        "Menu",
+        "📂 NAVIGASI",
         [
-            "Monitoring",
-            "Analisa",
-            "Penolakan Pesanan"
+            "📊 Monitoring",
+            "📋 Analisa",
+            "❌ Penolakan Pesanan"
         ]
     )
+
+# Hilangkan emoji ketika pengecekan menu
+menu_clean = menu.replace("📊 ", "") \
+                 .replace("📋 ", "") \
+                 .replace("✅ ", "") \
+                 .replace("📄 ", "") \
+                 .replace("❌ ", "")
 
 # =========================
 # MONITORING (FAST)
 # =========================
-if menu=="Monitoring":
+if menu_clean == "Monitoring":
 
     st.title("📊 Monitoring Pemakaian Produk")
 
@@ -283,7 +307,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # =========================
 # MENU ANALISA FINAL (FULL FIX + VIEW FILE AMAN)
 # =========================
-if menu == "Analisa":
+if menu_clean == "Analisa":
 
     import os
     import io
@@ -818,8 +842,7 @@ def tampilkan_file(file_path, nama="File"):
 # =========================
 # MENU APPROVAL FINAL
 # =========================
-if menu == "Approval":
-
+if menu_clean == "Approval":
     st.title("✅ Approval + Preview Analisa")
 
     df = pd.read_sql("SELECT * FROM analisa ORDER BY id DESC", conn)
@@ -1216,63 +1239,578 @@ if menu=="Output":
 # MENU PENOLAKAN PESANAN
 # ============================================================
 
-if menu == "Penolakan Pesanan":
+if menu_clean == "Penolakan Pesanan":
 
     import os
-    import fitz
+    import base64
     import streamlit as st
     from datetime import datetime
 
-    st.title("📄 Surat Penolakan Pesanan")
+    try:
+        import fitz
+    except ImportError:
 
-    # ========================================================
-    # TEMPLATE PDF
-    # ========================================================
-
-    TEMPLATE_PENOLAKAN = "Surat Penolakan Obat - Google Dokumen.pdf"
-    OUTPUT_FOLDER = "pdf"
-
-    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-
-    if not os.path.exists(TEMPLATE_PENOLAKAN):
         st.error(
-            f"Template tidak ditemukan: {TEMPLATE_PENOLAKAN}"
+            "Library PyMuPDF belum terinstall."
         )
-        st.info(
-            "Letakkan file PDF template di folder yang sama dengan app.py."
+
+        st.code(
+            "pip install PyMuPDF"
         )
+
+        st.stop()
+
+    # ========================================================
+    # PATH
+    # ========================================================
+
+    BASE_DIR = os.path.dirname(
+        os.path.abspath(__file__)
+    )
+
+    TEMPLATE_PENOLAKAN = os.path.join(
+        BASE_DIR,
+        "Surat Penolakan Obat - Google Dokumen.pdf"
+    )
+
+    OUTPUT_FOLDER = os.path.join(
+        BASE_DIR,
+        "pdf"
+    )
+
+    os.makedirs(
+        OUTPUT_FOLDER,
+        exist_ok=True
+    )
+
+    # ========================================================
+    # HEADER
+    # ========================================================
+
+    st.title("❌ Surat Penolakan Pesanan")
+
+    st.caption(
+        "Form ini digunakan untuk membuat Surat Penolakan "
+        "Pesanan berdasarkan template yang telah ditentukan."
+    )
+
+    st.divider()
+
+    # ========================================================
+    # CEK TEMPLATE
+    # ========================================================
+
+    if not os.path.isfile(TEMPLATE_PENOLAKAN):
+
+        st.error(
+            "❌ Template Surat Penolakan tidak ditemukan."
+        )
+
+        st.warning(
+            "Pastikan file berikut berada satu folder dengan app.py:"
+        )
+
+        st.code(
+            "Surat Penolakan Obat - Google Dokumen.pdf"
+        )
+
+        st.write(
+            "Lokasi yang dicari:"
+        )
+
+        st.code(
+            TEMPLATE_PENOLAKAN
+        )
+
         st.stop()
 
     # ========================================================
     # INFORMASI SURAT
     # ========================================================
 
-    st.subheader("A. Informasi Surat Pesanan")
+    st.subheader("A. Informasi Surat")
 
-    nama_sarana = st.text_input(
-        "Nama Sarana",
-        placeholder="Contoh: Apotek Sehat"
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        nama_sarana = st.text_input(
+            "Nama Sarana",
+            placeholder="Contoh: Apotek Sehat",
+            key="penolakan_nama"
+        )
+
+        nomor_sp = st.text_input(
+            "Nomor Surat Pesanan",
+            placeholder="Contoh: SP/001/IX/2026",
+            key="penolakan_nomor"
+        )
+
+    with col2:
+
+        tanggal_sp = st.date_input(
+            "Tanggal Surat Pesanan",
+            value=datetime.now().date(),
+            key="penolakan_tanggal_sp"
+        )
+
+        tanggal_surat = st.date_input(
+            "Tanggal Surat Penolakan",
+            value=datetime.now().date(),
+            key="penolakan_tanggal_surat"
+        )
+
+    # ========================================================
+    # ITEM
+    # ========================================================
+
+    st.subheader("B. Item Pesanan")
+
+    st.caption(
+        "Maksimal 5 produk. Kosongkan baris yang tidak digunakan."
     )
 
-    nomor_sp = st.text_input(
-        "Nomor SP",
-        placeholder="Contoh: SP/001/IX/2026"
-    )
+    produk_data = []
 
-    tanggal_sp = st.date_input(
-        "Tanggal SP",
-        value=datetime.now().date()
-    )
+    for i in range(1, 6):
 
-    tanggal_surat = st.date_input(
-        "Tanggal Surat",
-        value=datetime.now().date()
+        with st.container(border=True):
+
+            st.markdown(
+                f"**Produk {i}**"
+            )
+
+            col1, col2, col3 = st.columns(
+                [5, 2, 2]
+            )
+
+            with col1:
+
+                nama_produk = st.text_input(
+                    "Nama Produk",
+                    key=f"penolakan_produk_{i}",
+                    placeholder="Nama produk"
+                )
+
+            with col2:
+
+                jumlah_pesanan = st.text_input(
+                    "Jumlah Pesanan",
+                    key=f"penolakan_qty_{i}",
+                    placeholder="Qty"
+                )
+
+            with col3:
+
+                jumlah_faktur = st.text_input(
+                    "Jumlah Difakturkan",
+                    key=f"penolakan_faktur_{i}",
+                    placeholder="Qty"
+                )
+
+            produk_data.append(
+                {
+                    "produk": nama_produk.strip(),
+                    "pesanan": jumlah_pesanan.strip(),
+                    "faktur": jumlah_faktur.strip()
+                }
+            )
+
+    # ========================================================
+    # ALASAN
+    # ========================================================
+
+    st.subheader("C. Alasan Penolakan")
+
+    alasan_ditolak = st.text_area(
+        "Alasan Penolakan",
+        placeholder=(
+            "Tuliskan alasan penolakan pesanan "
+            "secara jelas..."
+        ),
+        height=120,
+        key="penolakan_alasan"
     )
 
     # ========================================================
-    # ITEM PESANAN
+    # VALIDASI
     # ========================================================
 
+    errors = []
+
+    if not nama_sarana.strip():
+
+        errors.append(
+            "Nama Sarana wajib diisi."
+        )
+
+    if not nomor_sp.strip():
+
+        errors.append(
+            "Nomor Surat Pesanan wajib diisi."
+        )
+
+    produk_terisi = [
+        x for x in produk_data
+        if x["produk"]
+    ]
+
+    if not produk_terisi:
+
+        errors.append(
+            "Minimal satu produk harus diisi."
+        )
+
+    if not alasan_ditolak.strip():
+
+        errors.append(
+            "Alasan penolakan wajib diisi."
+        )
+
+    if errors:
+
+        st.error(
+            "Periksa data berikut:\n\n"
+            + "\n".join(
+                f"• {x}" for x in errors
+            )
+        )
+
+    # ========================================================
+    # FUNGSI TUTUP AREA
+    # ========================================================
+
+    def tutup_area(
+        page,
+        rect
+    ):
+
+        page.draw_rect(
+            fitz.Rect(rect),
+            color=None,
+            fill=(1, 1, 1),
+            overlay=True
+        )
+
+    # ========================================================
+    # FUNGSI ISI TEKS
+    # ========================================================
+
+    def isi_teks(
+        page,
+        rect,
+        text,
+        fontsize=9,
+        align=0
+    ):
+
+        text = str(text or "")
+
+        result = page.insert_textbox(
+            fitz.Rect(rect),
+            text,
+            fontsize=fontsize,
+            fontname="helv",
+            color=(0, 0, 0),
+            align=align,
+            overlay=True
+        )
+
+        return result
+
+    # ========================================================
+    # GENERATE PDF
+    # ========================================================
+
+    def buat_surat_penolakan():
+
+        doc = fitz.open(
+            TEMPLATE_PENOLAKAN
+        )
+
+        try:
+
+            if len(doc) == 0:
+
+                raise Exception(
+                    "Template PDF tidak memiliki halaman."
+                )
+
+            page = doc[0]
+
+            # =================================================
+            # NAMA SARANA
+            # =================================================
+
+            tutup_area(
+                page,
+                (130, 136, 300, 158)
+            )
+
+            isi_teks(
+                page,
+                (130, 136, 300, 158),
+                nama_sarana,
+                fontsize=9
+            )
+
+            # =================================================
+            # NOMOR SP
+            # =================================================
+
+            tutup_area(
+                page,
+                (275, 166, 370, 186)
+            )
+
+            isi_teks(
+                page,
+                (275, 166, 370, 186),
+                nomor_sp,
+                fontsize=9
+            )
+
+            # =================================================
+            # TANGGAL SP
+            # =================================================
+
+            tutup_area(
+                page,
+                (405, 166, 505, 186)
+            )
+
+            isi_teks(
+                page,
+                (405, 166, 505, 186),
+                tanggal_sp.strftime(
+                    "%d/%m/%Y"
+                ),
+                fontsize=9
+            )
+
+            # =================================================
+            # PRODUK
+            # =================================================
+
+            baris_y = [
+                (239, 269),
+                (269, 300),
+                (300, 330),
+                (330, 360),
+                (360, 391)
+            ]
+
+            for i, data in enumerate(
+                produk_data
+            ):
+
+                y1, y2 = baris_y[i]
+
+                # Nama Produk
+                tutup_area(
+                    page,
+                    (166, y1 + 1, 350, y2 - 1)
+                )
+
+                isi_teks(
+                    page,
+                    (170, y1 + 2, 348, y2 - 2),
+                    data["produk"],
+                    fontsize=8,
+                    align=1
+                )
+
+                # Jumlah Pesanan
+                tutup_area(
+                    page,
+                    (330, y1 + 1, 405, y2 - 1)
+                )
+
+                isi_teks(
+                    page,
+                    (332, y1 + 2, 403, y2 - 2),
+                    data["pesanan"],
+                    fontsize=8,
+                    align=1
+                )
+
+                # Jumlah Faktur
+                tutup_area(
+                    page,
+                    (407, y1 + 1, 505, y2 - 1)
+                )
+
+                isi_teks(
+                    page,
+                    (409, y1 + 2, 503, y2 - 2),
+                    data["faktur"],
+                    fontsize=8,
+                    align=1
+                )
+
+            # =================================================
+            # ALASAN
+            # =================================================
+
+            tutup_area(
+                page,
+                (245, 402, 510, 424)
+            )
+
+            isi_teks(
+                page,
+                (245, 402, 510, 424),
+                alasan_ditolak,
+                fontsize=8
+            )
+
+            # =================================================
+            # TANGGAL SURAT
+            # =================================================
+
+            tutup_area(
+                page,
+                (425, 476, 510, 497)
+            )
+
+            isi_teks(
+                page,
+                (425, 476, 510, 497),
+                tanggal_surat.strftime(
+                    "%d/%m/%Y"
+                ),
+                fontsize=9
+            )
+
+            # =================================================
+            # NAMA FILE
+            # =================================================
+
+            nomor_aman = (
+                nomor_sp
+                .replace("/", "_")
+                .replace("\\", "_")
+                .replace(" ", "_")
+            )
+
+            nama_file = (
+                f"Surat_Penolakan_"
+                f"{nomor_aman}_"
+                f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                f".pdf"
+            )
+
+            output_path = os.path.join(
+                OUTPUT_FOLDER,
+                nama_file
+            )
+
+            # =================================================
+            # SIMPAN
+            # =================================================
+
+            doc.save(
+                output_path,
+                garbage=4,
+                deflate=True
+            )
+
+            return output_path
+
+        finally:
+
+            doc.close()
+
+    # ========================================================
+    # BUTTON
+    # ========================================================
+
+    st.divider()
+
+    if st.button(
+        "📄 Generate Surat Penolakan",
+        type="primary",
+        use_container_width=True
+    ):
+
+        if errors:
+
+            st.error(
+                "❌ Surat belum dapat dibuat. "
+                "Lengkapi data terlebih dahulu."
+            )
+
+        else:
+
+            try:
+
+                hasil_pdf = buat_surat_penolakan()
+
+                st.success(
+                    "✅ Surat Penolakan berhasil dibuat."
+                )
+
+                # =============================================
+                # BACA PDF
+                # =============================================
+
+                with open(
+                    hasil_pdf,
+                    "rb"
+                ) as f:
+
+                    pdf_data = f.read()
+
+                # =============================================
+                # DOWNLOAD
+                # =============================================
+
+                st.download_button(
+                    "⬇️ Download Surat Penolakan",
+                    data=pdf_data,
+                    file_name=os.path.basename(
+                        hasil_pdf
+                    ),
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+
+                # =============================================
+                # PREVIEW
+                # =============================================
+
+                st.subheader(
+                    "👁️ Preview Surat"
+                )
+
+                pdf_base64 = base64.b64encode(
+                    pdf_data
+                ).decode("utf-8")
+
+                pdf_display = f"""
+                <iframe
+                    src="data:application/pdf;base64,{pdf_base64}"
+                    width="100%"
+                    height="800"
+                    style="
+                        border:1px solid #ccc;
+                        border-radius:8px;
+                    ">
+                </iframe>
+                """
+
+                st.markdown(
+                    pdf_display,
+                    unsafe_allow_html=True
+                )
+
+            except Exception as e:
+
+                st.error(
+                    "❌ Gagal membuat Surat Penolakan."
+                )
+
+                st.exception(e)
     st.subheader("B. Item Pesanan")
 
     st.caption(
