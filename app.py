@@ -69,38 +69,122 @@ conn.commit()
 # =========================
 # LOGIN
 # =========================
-if "login" not in st.session_state:
-    st.session_state.login=False
-    st.session_state.role=None
 
-users={"admin":{"password":"123","role":"admin"},"user1":{"password":"123","role":"user"}}
+if "login" not in st.session_state:
+    st.session_state.login = False
+
+if "role" not in st.session_state:
+    st.session_state.role = None
+
+
+# =========================
+# DATA USER
+# =========================
+
+users = {
+    "admin": {
+        "password": "123",
+        "role": "admin"
+    },
+    "user1": {
+        "password": "123",
+        "role": "user"
+    }
+}
+
+
+# =========================
+# HALAMAN LOGIN
+# =========================
 
 if not st.session_state.login:
-    st.title(""Wajarlah. KF.png" Login")
-    u=st.text_input("Username")
-    p=st.text_input("Password",type="password")
 
-    if st.button("Login"):
-        if u in users and users[u]["password"]==p:
-            st.session_state.login=True
-            st.session_state.role=users[u]["role"]
-            st.rerun()
+    st.title("🔐 Login Monitoring Analisa")
+
+    username = st.text_input(
+        "Username",
+        placeholder="Masukkan username"
+    )
+
+    password = st.text_input(
+        "Password",
+        type="password",
+        placeholder="Masukkan password"
+    )
+
+    if st.button("Login", type="primary"):
+
+        username = username.strip().lower()
+        password = password.strip()
+
+        if username in users:
+
+            if users[username]["password"] == password:
+
+                st.session_state.login = True
+                st.session_state.role = users[username]["role"]
+
+                st.success("Login berhasil")
+
+                st.rerun()
+
+            else:
+                st.error("Password salah")
+
         else:
-            st.error("Login gagal")
+            st.error("Username tidak ditemukan")
+
     st.stop()
 
-st.sidebar.success(f"Login: {st.session_state.role}")
 
-if st.sidebar.button("Logout"):
-    st.session_state.login=False
+# =========================
+# SIDEBAR USER
+# =========================
+
+st.sidebar.success(
+    f"Login sebagai: {st.session_state.role}"
+)
+
+
+# =========================
+# LOGOUT
+# =========================
+
+if st.sidebar.button("🚪 Logout"):
+
+    st.session_state.login = False
+    st.session_state.role = None
+
     st.rerun()
 
-menu = st.sidebar.radio(
-    "Menu",
-    ["Monitoring","Analisa","Approval","Output","Penolakan Pesanan"]
-    if st.session_state.role=="admin"
-    else ["Monitoring","Analisa"]
-)
+
+# =========================
+# MENU
+# =========================
+
+if st.session_state.role == "admin":
+
+    menu = st.sidebar.radio(
+        "Menu",
+        [
+            "Monitoring",
+            "Analisa",
+            "Approval",
+            "Output",
+            "Penolakan Pesanan"
+        ]
+    )
+
+else:
+
+    menu = st.sidebar.radio(
+        "Menu",
+        [
+            "Monitoring",
+            "Analisa",
+            "Penolakan Pesanan"
+        ]
+    )
 
 # =========================
 # MONITORING (FAST)
