@@ -1,5 +1,6 @@
 streamlit
 pandas
-reportlab
-pillow
 openpyxl
+reportlab
+Pillow
+PyMuPDF
