@@ -156,59 +156,38 @@ if st.sidebar.button("🚪 Logout"):
     st.session_state.role = None
 
     st.rerun()
-
-
 # ============================================================
-# SIDEBAR MENU
+# MENU UTAMA
 # ============================================================
 
 st.sidebar.markdown("---")
-
-st.sidebar.markdown(
-    f"""
-    <div style="
-        padding:10px;
-        border-radius:10px;
-        background-color:#f0f2f6;
-        text-align:center;
-        margin-bottom:10px;
-    ">
-        <b>👤 {st.session_state.role.upper()}</b>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+st.sidebar.subheader("📂 MENU APLIKASI")
 
 if st.session_state.role == "admin":
 
     menu = st.sidebar.radio(
-        "📂 NAVIGASI",
+        "Pilih Menu",
         [
             "📊 Monitoring",
             "📋 Analisa",
             "✅ Approval",
             "📄 Output",
             "❌ Penolakan Pesanan"
-        ]
+        ],
+        key="main_menu"
     )
 
 else:
 
     menu = st.sidebar.radio(
-        "📂 NAVIGASI",
+        "Pilih Menu",
         [
             "📊 Monitoring",
             "📋 Analisa",
             "❌ Penolakan Pesanan"
-        ]
+        ],
+        key="main_menu"
     )
-
-# Hilangkan emoji ketika pengecekan menu
-menu_clean = menu.replace("📊 ", "") \
-                 .replace("📋 ", "") \
-                 .replace("✅ ", "") \
-                 .replace("📄 ", "") \
-                 .replace("❌ ", "")
 
 # =========================
 # MONITORING (FAST)
@@ -1239,7 +1218,13 @@ if menu=="Output":
 # MENU PENOLAKAN PESANAN
 # ============================================================
 
-if menu_clean == "Penolakan Pesanan":
+if menu == "❌ Penolakan Pesanan":
+
+    st.title("❌ Surat Penolakan Pesanan")
+
+    st.write(
+        "Form pembuatan Surat Penolakan Pesanan"
+    )
 
     import os
     import base64
