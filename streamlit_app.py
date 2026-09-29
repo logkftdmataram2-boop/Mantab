@@ -44,6 +44,18 @@ def get_conn():
 
 conn = get_conn()
 
+conn.execute("""
+CREATE TABLE IF NOT EXISTS penolakan_item (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    penolakan_id INTEGER,
+    produk TEXT,
+    qty_pesanan TEXT,
+    qty_faktur TEXT
+)
+""")
+
+conn.commit()
+
 # =========================
 # AUTO MIGRATION
 # =========================
@@ -1213,118 +1225,225 @@ if menu=="Output":
             st.download_button("📄 Download Surat Pernyataan", f, file_name=os.path.basename(sp))
 
 # ============================================================
-# MENU PENOLAKAN PESANAN
+# MENU PENOLAKAN PESANAN - VERSI BARU
 # ============================================================
 
 if menu == "Penolakan Pesanan":
 
     import os
-    import fitz
+    import base64
+    import pandas as pd
     import streamlit as st
+
     from datetime import datetime
+    from reportlab.platypus import (
+        SimpleDocTemplate,
+        Paragraph,
+        Spacer,
+        Table,
+        TableStyle
+    )
+
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import (
+        getSampleStyleSheet,
+        ParagraphStyle
+    )
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.lib.units import cm
+
+    # ========================================================
+    # DATABASE
+    # ========================================================
+
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS penolakan (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tanggal_surat TEXT,
+        nama_sarana TEXT,
+        nomor_sp TEXT,
+        tanggal_sp TEXT,
+        alasan TEXT,
+        status TEXT DEFAULT 'Pending',
+        created_at TEXT
+    )
+    """)
+
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS penolakan_item (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        penolakan_id INTEGER,
+        produk TEXT,
+        qty_pesanan TEXT,
+        qty_faktur TEXT
+    )
+    """)
+
+    conn.commit()
+
+    PDF_FOLDER = "pdf"
+    os.makedirs(PDF_FOLDER, exist_ok=True)
+
+    # ========================================================
+    # JUDUL
+    # ========================================================
 
     st.title("📄 Surat Penolakan Pesanan")
 
+    st.info(
+        "Form penolakan dibuat dengan sistem yang sama seperti "
+        "Analisa Kewajaran: data disimpan terlebih dahulu, "
+        "kemudian dapat diproses dan dibuat menjadi PDF."
+    )
+
     # ========================================================
-    # TEMPLATE PDF
+    # FORM INPUT
     # ========================================================
 
-    TEMPLATE_PENOLAKAN = "Surat Penolakan Obat - Google Dokumen.pdf"
-    OUTPUT_FOLDER = "pdf"
+    st.subheader("A. Informasi Surat")
 
-    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+    col1, col2 = st.columns(2)
 
-    if not os.path.exists(TEMPLATE_PENOLAKAN):
-        st.error(
-            f"Template tidak ditemukan: {TEMPLATE_PENOLAKAN}"
+    with col1:
+
+        nama_sarana = st.text_input(
+            "Nama Sarana / Pelanggan",
+            placeholder="Contoh: Apotek Sehat"
         )
-        st.info(
-            "Letakkan file PDF template di folder yang sama dengan app.py."
+
+        nomor_sp = st.text_input(
+            "Nomor Surat Pesanan",
+            placeholder="Contoh: SP/001/IX/2026"
         )
-        st.stop()
 
-    # ========================================================
-    # INFORMASI SURAT
-    # ========================================================
+        tanggal_sp = st.date_input(
+            "Tanggal Surat Pesanan",
+            value=datetime.now().date()
+        )
 
-    st.subheader("A. Informasi Surat Pesanan")
+    with col2:
 
-    nama_sarana = st.text_input(
-        "Nama Sarana",
-        placeholder="Contoh: Apotek Sehat"
-    )
+        tanggal_surat = st.date_input(
+            "Tanggal Surat Penolakan",
+            value=datetime.now().date()
+        )
 
-    nomor_sp = st.text_input(
-        "Nomor SP",
-        placeholder="Contoh: SP/001/IX/2026"
-    )
+        st.write("")
+        st.write("")
 
-    tanggal_sp = st.date_input(
-        "Tanggal SP",
-        value=datetime.now().date()
-    )
-
-    tanggal_surat = st.date_input(
-        "Tanggal Surat",
-        value=datetime.now().date()
-    )
+        st.caption(
+            "Status awal dokumen: Pending"
+        )
 
     # ========================================================
     # ITEM PESANAN
     # ========================================================
 
-    st.subheader("B. Item Pesanan")
+    st.subheader("B. Daftar Produk yang Ditolak")
 
     st.caption(
-        "Isi maksimal 5 produk sesuai tabel pada surat. "
-        "Baris yang tidak digunakan akan dikosongkan."
+        "Tambahkan produk sesuai kebutuhan. "
+        "Tidak dibatasi hanya 5 produk."
     )
+
+    if "jumlah_item_penolakan" not in st.session_state:
+        st.session_state.jumlah_item_penolakan = 3
+
+    col_add, col_remove = st.columns(2)
+
+    with col_add:
+
+        if st.button("➕ Tambah Produk"):
+
+            st.session_state.jumlah_item_penolakan += 1
+
+            st.rerun()
+
+    with col_remove:
+
+        if st.button("➖ Kurangi Produk"):
+
+            if st.session_state.jumlah_item_penolakan > 1:
+
+                st.session_state.jumlah_item_penolakan -= 1
+
+                st.rerun()
 
     produk_data = []
 
-    for i in range(1, 6):
+    # Header
+    h1, h2, h3, h4 = st.columns([0.5, 4, 2, 2])
 
-        st.markdown(f"**Produk {i}**")
+    with h1:
+        st.markdown("**No**")
 
-        col1, col2, col3 = st.columns([4, 2, 2])
+    with h2:
+        st.markdown("**Nama Produk / Barang**")
 
-        with col1:
-            nama_produk = st.text_input(
-                f"Nama Produk / Barang {i}",
+    with h3:
+        st.markdown("**Jumlah Pesanan**")
+
+    with h4:
+        st.markdown("**Jumlah Difakturkan**")
+
+    st.divider()
+
+    for i in range(st.session_state.jumlah_item_penolakan):
+
+        c1, c2, c3, c4 = st.columns([0.5, 4, 2, 2])
+
+        with c1:
+            st.write(i + 1)
+
+        with c2:
+
+            produk = st.text_input(
+                f"Produk {i+1}",
                 key=f"penolakan_produk_{i}",
-                placeholder="Nama produk"
+                label_visibility="collapsed",
+                placeholder="Nama produk / barang"
             )
 
-        with col2:
-            jumlah_pesanan = st.text_input(
-                f"Jumlah Pesanan {i}",
+        with c3:
+
+            qty_pesanan = st.text_input(
+                f"Qty Pesanan {i+1}",
                 key=f"penolakan_qty_{i}",
+                label_visibility="collapsed",
                 placeholder="Qty"
             )
 
-        with col3:
-            jumlah_faktur = st.text_input(
-                f"Jumlah Difakturkan {i}",
+        with c4:
+
+            qty_faktur = st.text_input(
+                f"Qty Faktur {i+1}",
                 key=f"penolakan_faktur_{i}",
+                label_visibility="collapsed",
                 placeholder="Qty"
             )
 
         produk_data.append({
-            "produk": nama_produk,
-            "pesanan": jumlah_pesanan,
-            "faktur": jumlah_faktur
+            "produk": produk.strip(),
+            "pesanan": qty_pesanan.strip(),
+            "faktur": qty_faktur.strip()
         })
 
     # ========================================================
-    # ALASAN PENOLAKAN
+    # ALASAN
     # ========================================================
 
     st.subheader("C. Alasan Penolakan")
 
-    alasan_ditolak = st.text_area(
-        "Alasan ditolak",
-        placeholder="Tuliskan alasan penolakan pesanan...",
-        height=100
+    alasan = st.text_area(
+        "Alasan Penolakan Pesanan",
+        placeholder=(
+            "Contoh:\n"
+            "Pesanan tidak dapat dilayani karena jumlah pesanan "
+            "tidak sesuai dengan hasil analisa kewajaran dan "
+            "kapasitas fasilitas pelanggan."
+        ),
+        height=130
     )
 
     # ========================================================
@@ -1334,300 +1453,1025 @@ if menu == "Penolakan Pesanan":
     errors = []
 
     if nama_sarana.strip() == "":
-        errors.append("Nama Sarana wajib diisi")
+        errors.append(
+            "Nama sarana wajib diisi."
+        )
 
     if nomor_sp.strip() == "":
-        errors.append("Nomor SP wajib diisi")
+        errors.append(
+            "Nomor Surat Pesanan wajib diisi."
+        )
 
-    if not any(x["produk"].strip() for x in produk_data):
-        errors.append("Minimal 1 produk harus diisi")
+    item_valid = [
+        x for x in produk_data
+        if x["produk"]
+    ]
 
-    if alasan_ditolak.strip() == "":
-        errors.append("Alasan penolakan wajib diisi")
+    if len(item_valid) == 0:
+
+        errors.append(
+            "Minimal 1 produk harus diisi."
+        )
+
+    if alasan.strip() == "":
+
+        errors.append(
+            "Alasan penolakan wajib diisi."
+        )
 
     if errors:
-        st.error(" | ".join(errors))
+
+        st.error(
+            "\n".join(
+                [f"• {x}" for x in errors]
+            )
+        )
 
     # ========================================================
-    # FUNGSI MEMBUAT PDF
+    # PREVIEW DATA
     # ========================================================
 
-    def buat_surat_penolakan():
+    st.subheader("D. Preview Data")
 
-        # ----------------------------------------------------
-        # Buka PDF template asli
-        # ----------------------------------------------------
+    if nama_sarana:
 
-        doc = fitz.open(TEMPLATE_PENOLAKAN)
-
-        page = doc[0]
-
-        # ----------------------------------------------------
-        # Fungsi untuk menutup area placeholder
-        # ----------------------------------------------------
-
-        def tutup_area(rect):
-
-            page.draw_rect(
-                fitz.Rect(rect),
-                color=None,
-                fill=(1, 1, 1),
-                overlay=True
-            )
-
-        # ----------------------------------------------------
-        # Fungsi memasukkan teks
-        # ----------------------------------------------------
-
-        def isi_teks(
-            rect,
-            text,
-            fontsize=9,
-            align=0,
-            fontname="helv"
-        ):
-
-            page.insert_textbox(
-                fitz.Rect(rect),
-                str(text),
-                fontsize=fontsize,
-                fontname=fontname,
-                color=(0, 0, 0),
-                align=align,
-                overlay=True
-            )
-
-        # ====================================================
-        # 1. NAMA SARANA
-        # ====================================================
-
-        tutup_area(
-            (130, 136, 210, 158)
+        st.write(
+            f"**Kepada:** {nama_sarana}"
         )
 
-        isi_teks(
-            (130, 136, 300, 158),
-            nama_sarana,
-            fontsize=9
-        )
+    st.write(
+        f"**Nomor SP:** {nomor_sp or '-'}"
+    )
 
-        # ====================================================
-        # 2. NOMOR SP
-        # ====================================================
+    st.write(
+        f"**Tanggal SP:** "
+        f"{tanggal_sp.strftime('%d/%m/%Y')}"
+    )
 
-        tutup_area(
-            (275, 166, 370, 186)
-        )
-
-        isi_teks(
-            (275, 166, 370, 186),
-            nomor_sp,
-            fontsize=9
-        )
-
-        # ====================================================
-        # 3. TANGGAL SP
-        # ====================================================
-
-        tutup_area(
-            (405, 166, 505, 186)
-        )
-
-        isi_teks(
-            (405, 166, 505, 186),
-            tanggal_sp.strftime("%d/%m/%Y"),
-            fontsize=9
-        )
-
-        # ====================================================
-        # 4. PRODUK 1 - 5
-        # ====================================================
-
-        # Posisi masing-masing baris
-        baris_y = [
-            (239, 269),
-            (269, 300),
-            (300, 330),
-            (330, 360),
-            (360, 391)
+    preview_data = [
+        [
+            "No",
+            "Nama Produk / Barang",
+            "Jumlah Pesanan",
+            "Jumlah Difakturkan"
         ]
+    ]
 
-        for i, data in enumerate(produk_data):
+    for i, item in enumerate(item_valid):
 
-            y1, y2 = baris_y[i]
+        preview_data.append([
+            i + 1,
+            item["produk"],
+            item["pesanan"],
+            item["faktur"]
+        ])
 
-            # ------------------------------------------------
-            # Nama Produk
-            # ------------------------------------------------
+    if len(preview_data) > 1:
 
-            tutup_area(
-                (166, y1 + 1, 350, y2 - 1)
-            )
+        st.table(preview_data)
 
-            isi_teks(
-                (170, y1 + 2, 348, y2 - 2),
-                data["produk"],
-                fontsize=8,
-                align=1
-            )
+    st.write(
+        "**Alasan:**",
+        alasan or "-"
+    )
 
-            # ------------------------------------------------
-            # Jumlah Pesanan
-            # ------------------------------------------------
+    # ========================================================
+    # FUNGSI GENERATE PDF
+    # ========================================================
 
-            tutup_area(
-                (330, y1 + 1, 405, y2 - 1)
-            )
-
-            isi_teks(
-                (332, y1 + 2, 403, y2 - 2),
-                data["pesanan"],
-                fontsize=8,
-                align=1
-            )
-
-            # ------------------------------------------------
-            # Jumlah Difakturkan
-            # ------------------------------------------------
-
-            tutup_area(
-                (407, y1 + 1, 505, y2 - 1)
-            )
-
-            isi_teks(
-                (409, y1 + 2, 503, y2 - 2),
-                data["faktur"],
-                fontsize=8,
-                align=1
-            )
-
-        # ====================================================
-        # 5. ALASAN PENOLAKAN
-        # ====================================================
-
-        tutup_area(
-            (245, 402, 510, 424)
-        )
-
-        isi_teks(
-            (245, 402, 510, 424),
-            alasan_ditolak,
-            fontsize=8
-        )
-
-        # ====================================================
-        # 6. TANGGAL SURAT
-        # ====================================================
-
-        tutup_area(
-            (425, 476, 510, 497)
-        )
-
-        isi_teks(
-            (425, 476, 510, 497),
-            tanggal_surat.strftime("%d/%m/%Y"),
-            fontsize=9
-        )
-
-        # ====================================================
-        # SIMPAN
-        # ====================================================
+    def generate_surat_penolakan(
+        nama_sarana,
+        nomor_sp,
+        tanggal_sp,
+        tanggal_surat,
+        produk_data,
+        alasan
+    ):
 
         nama_file = (
-            f"Surat_Penolakan_"
-            f"{nomor_sp.replace('/', '_').replace(' ', '_')}_"
-            f"{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+            "Surat_Penolakan_"
+            + nomor_sp.replace("/", "_")
+            .replace("\\", "_")
+            .replace(" ", "_")
+            + "_"
+            + datetime.now().strftime("%Y%m%d%H%M%S")
+            + ".pdf"
         )
 
         output_path = os.path.join(
-            OUTPUT_FOLDER,
+            PDF_FOLDER,
             nama_file
         )
 
-        doc.save(
+        doc = SimpleDocTemplate(
+
             output_path,
-            garbage=4,
-            deflate=True
+
+            pagesize=A4,
+
+            rightMargin=1.5 * cm,
+            leftMargin=1.5 * cm,
+            topMargin=1.5 * cm,
+            bottomMargin=1.5 * cm
         )
 
-        doc.close()
+        styles = getSampleStyleSheet()
+
+        normal = ParagraphStyle(
+            "NormalCustom",
+            parent=styles["Normal"],
+            fontName="Helvetica",
+            fontSize=9,
+            leading=12
+        )
+
+        small = ParagraphStyle(
+            "Small",
+            parent=normal,
+            fontSize=8,
+            leading=10
+        )
+
+        center = ParagraphStyle(
+            "Center",
+            parent=normal,
+            alignment=TA_CENTER
+        )
+
+        title = ParagraphStyle(
+            "TitleCustom",
+            parent=normal,
+            fontName="Helvetica-Bold",
+            fontSize=13,
+            leading=16,
+            alignment=TA_CENTER,
+            spaceAfter=8
+        )
+
+        elements = []
+
+        # ====================================================
+        # KOP
+        # ====================================================
+
+        kop_data = [
+
+            [
+                Paragraph(
+                    "<b>KANTOR<br/>CABANG</b>",
+                    ParagraphStyle(
+                        "Kantor",
+                        parent=small,
+                        fontSize=8,
+                        leading=9
+                    )
+                ),
+
+                Paragraph(
+                    "<b>PT. KIMIA FARMA TRADING & DISTRIBUTION</b>",
+                    ParagraphStyle(
+                        "Company",
+                        parent=normal,
+                        fontSize=10,
+                        alignment=TA_CENTER
+                    )
+                )
+            ]
+        ]
+
+        kop = Table(
+            kop_data,
+            colWidths=[
+                3 * cm,
+                14.5 * cm
+            ]
+        )
+
+        kop.setStyle(
+            TableStyle([
+                (
+                    "VALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "TOP"
+                ),
+
+                (
+                    "ALIGN",
+                    (1, 0),
+                    (1, 0),
+                    "RIGHT"
+                ),
+
+                (
+                    "LINEBELOW",
+                    (0, 0),
+                    (-1, -1),
+                    0.8,
+                    colors.black
+                ),
+
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7
+                )
+            ])
+        )
+
+        elements.append(kop)
+
+        elements.append(
+            Spacer(1, 12)
+        )
+
+        # ====================================================
+        # JUDUL
+        # ====================================================
+
+        elements.append(
+            Paragraph(
+                "SURAT PENOLAKAN PESANAN",
+                title
+            )
+        )
+
+        elements.append(
+            Spacer(1, 8)
+        )
+
+        # ====================================================
+        # INFORMASI SURAT
+        # ====================================================
+
+        info = [
+
+            [
+                Paragraph("<b>Kepada</b>", normal),
+                Paragraph(
+                    ": " + nama_sarana,
+                    normal
+                )
+            ],
+
+            [
+                Paragraph(
+                    "<b>Nomor Surat Pesanan</b>",
+                    normal
+                ),
+                Paragraph(
+                    ": " + nomor_sp,
+                    normal
+                )
+            ],
+
+            [
+                Paragraph(
+                    "<b>Tanggal Surat Pesanan</b>",
+                    normal
+                ),
+                Paragraph(
+                    ": "
+                    + tanggal_sp.strftime("%d/%m/%Y"),
+                    normal
+                )
+            ]
+        ]
+
+        info_table = Table(
+            info,
+            colWidths=[
+                5 * cm,
+                12.5 * cm
+            ]
+        )
+
+        info_table.setStyle(
+            TableStyle([
+                (
+                    "VALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "TOP"
+                ),
+
+                (
+                    "LEFTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    2
+                ),
+
+                (
+                    "RIGHTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    2
+                ),
+
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    3
+                ),
+
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    3
+                )
+            ])
+        )
+
+        elements.append(info_table)
+
+        elements.append(
+            Spacer(1, 10)
+        )
+
+        elements.append(
+            Paragraph(
+                "Dengan hormat,",
+                normal
+            )
+        )
+
+        elements.append(
+            Spacer(1, 5)
+        )
+
+        elements.append(
+            Paragraph(
+                "Berdasarkan Surat Pesanan tersebut di atas, "
+                "bersama ini kami menyampaikan bahwa pesanan "
+                "sebagaimana tercantum di bawah ini tidak dapat "
+                "kami layani:",
+                normal
+            )
+        )
+
+        elements.append(
+            Spacer(1, 8)
+        )
+
+        # ====================================================
+        # TABEL PRODUK
+        # ====================================================
+
+        table_data = [
+
+            [
+                Paragraph("<b>No</b>", center),
+
+                Paragraph(
+                    "<b>Nama Produk / Barang</b>",
+                    center
+                ),
+
+                Paragraph(
+                    "<b>Jumlah<br/>Pesanan</b>",
+                    center
+                ),
+
+                Paragraph(
+                    "<b>Jumlah<br/>Difakturkan</b>",
+                    center
+                )
+            ]
+        ]
+
+        for i, item in enumerate(produk_data):
+
+            table_data.append([
+
+                Paragraph(
+                    str(i + 1),
+                    center
+                ),
+
+                Paragraph(
+                    item["produk"],
+                    small
+                ),
+
+                Paragraph(
+                    item["pesanan"],
+                    center
+                ),
+
+                Paragraph(
+                    item["faktur"],
+                    center
+                )
+            ])
+
+        product_table = Table(
+
+            table_data,
+
+            colWidths=[
+                1 * cm,
+                9 * cm,
+                3.25 * cm,
+                3.25 * cm
+            ],
+
+            repeatRows=1
+        )
+
+        product_table.setStyle(
+            TableStyle([
+
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    0.6,
+                    colors.black
+                ),
+
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    colors.HexColor("#EDEDED")
+                ),
+
+                (
+                    "VALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "MIDDLE"
+                ),
+
+                (
+                    "ALIGN",
+                    (0, 0),
+                    (0, -1),
+                    "CENTER"
+                ),
+
+                (
+                    "ALIGN",
+                    (2, 1),
+                    (-1, -1),
+                    "CENTER"
+                ),
+
+                (
+                    "LEFTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    5
+                ),
+
+                (
+                    "RIGHTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    5
+                ),
+
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    6
+                ),
+
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    6
+                )
+            ])
+        )
+
+        elements.append(product_table)
+
+        elements.append(
+            Spacer(1, 10)
+        )
+
+        # ====================================================
+        # ALASAN
+        # ====================================================
+
+        elements.append(
+            Paragraph(
+                "<b>Alasan Penolakan:</b>",
+                normal
+            )
+        )
+
+        elements.append(
+            Spacer(1, 3)
+        )
+
+        alasan_table = Table(
+            [[
+                Paragraph(
+                    alasan,
+                    normal
+                )
+            ]],
+            colWidths=[16.5 * cm]
+        )
+
+        alasan_table.setStyle(
+            TableStyle([
+
+                (
+                    "BOX",
+                    (0, 0),
+                    (-1, -1),
+                    0.6,
+                    colors.black
+                ),
+
+                (
+                    "VALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "TOP"
+                ),
+
+                (
+                    "LEFTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7
+                ),
+
+                (
+                    "RIGHTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7
+                ),
+
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7
+                ),
+
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7
+                )
+            ])
+        )
+
+        elements.append(alasan_table)
+
+        elements.append(
+            Spacer(1, 12)
+        )
+
+        elements.append(
+            Paragraph(
+                "Demikian surat penolakan pesanan ini kami "
+                "sampaikan. Atas perhatian dan kerja samanya, "
+                "kami ucapkan terima kasih.",
+                normal
+            )
+        )
+
+        elements.append(
+            Spacer(1, 25)
+        )
+
+        # ====================================================
+        # TANDA TANGAN
+        # ====================================================
+
+        ttd = Table(
+
+            [
+                [
+                    "",
+                    "Mataram, "
+                    + tanggal_surat.strftime("%d/%m/%Y")
+                ],
+
+                [
+                    "",
+                    "Apoteker Penanggung Jawab"
+                ],
+
+                ["", ""],
+
+                ["", ""],
+
+                [
+                    "",
+                    "<b>____________________________</b>"
+                ],
+
+                [
+                    "",
+                    "PT Kimia Farma Trading & Distribution"
+                ],
+
+                [
+                    "",
+                    "Cabang Mataram"
+                ]
+            ],
+
+            colWidths=[
+                8.5 * cm,
+                8.5 * cm
+            ]
+        )
+
+        ttd.setStyle(
+            TableStyle([
+
+                (
+                    "ALIGN",
+                    (1, 0),
+                    (1, -1),
+                    "CENTER"
+                ),
+
+                (
+                    "VALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "TOP"
+                ),
+
+                (
+                    "FONTSIZE",
+                    (0, 0),
+                    (-1, -1),
+                    9
+                ),
+
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    2
+                ),
+
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    2
+                )
+            ])
+        )
+
+        elements.append(ttd)
+
+        # ====================================================
+        # BUILD
+        # ====================================================
+
+        doc.build(elements)
 
         return output_path
 
     # ========================================================
-    # TOMBOL GENERATE
+    # SIMPAN
     # ========================================================
 
+    st.divider()
+
     if st.button(
-        "📄 Generate Surat Penolakan",
+        "💾 Simpan Surat Penolakan",
         type="primary"
     ):
 
         if errors:
 
             st.error(
-                "Lengkapi data terlebih dahulu:\n\n"
-                + "\n".join(
-                    [f"- {x}" for x in errors]
-                )
+                "Data belum lengkap. Silakan periksa kembali."
             )
 
         else:
 
             try:
 
-                hasil_pdf = buat_surat_penolakan()
+                # --------------------------------------------
+                # SIMPAN HEADER
+                # --------------------------------------------
 
-                st.success(
-                    "✅ Surat Penolakan berhasil dibuat."
+                cursor = conn.execute(
+                    """
+                    INSERT INTO penolakan (
+                        tanggal_surat,
+                        nama_sarana,
+                        nomor_sp,
+                        tanggal_sp,
+                        alasan,
+                        status,
+                        created_at
+                    )
+                    VALUES (?,?,?,?,?,?,?)
+                    """,
+                    (
+                        tanggal_surat.strftime("%Y-%m-%d"),
+                        nama_sarana,
+                        nomor_sp,
+                        tanggal_sp.strftime("%Y-%m-%d"),
+                        alasan,
+                        "Pending",
+                        datetime.now().strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        )
+                    )
                 )
 
-                # ------------------------------------------------
-                # Preview PDF
-                # ------------------------------------------------
+                penolakan_id = cursor.lastrowid
+
+                # --------------------------------------------
+                # SIMPAN ITEM
+                # --------------------------------------------
+
+                for item in item_valid:
+
+                    conn.execute(
+                        """
+                        INSERT INTO penolakan_item (
+                            penolakan_id,
+                            produk,
+                            qty_pesanan,
+                            qty_faktur
+                        )
+                        VALUES (?,?,?,?)
+                        """,
+                        (
+                            penolakan_id,
+                            item["produk"],
+                            item["pesanan"],
+                            item["faktur"]
+                        )
+                    )
+
+                conn.commit()
+
+                st.success(
+                    "✅ Surat penolakan berhasil disimpan."
+                )
+
+                st.info(
+                    f"Nomor ID Penolakan: {penolakan_id} | "
+                    "Status: Pending"
+                )
+
+            except Exception as e:
+
+                st.error(
+                    f"Gagal menyimpan data: {e}"
+                )
+
+    # ========================================================
+    # DATA PENOLAKAN
+    # ========================================================
+
+    st.divider()
+
+    st.subheader("📊 Data Surat Penolakan")
+
+    df_penolakan = pd.read_sql(
+        """
+        SELECT *
+        FROM penolakan
+        ORDER BY id DESC
+        """,
+        conn
+    )
+
+    if df_penolakan.empty:
+
+        st.info(
+            "Belum ada surat penolakan."
+        )
+
+    else:
+
+        selected_id = st.selectbox(
+            "Pilih Data Penolakan",
+            df_penolakan["id"].tolist()
+        )
+
+        row = df_penolakan[
+            df_penolakan["id"] == selected_id
+        ].iloc[0]
+
+        # ====================================================
+        # STATUS
+        # ====================================================
+
+        status = row["status"]
+
+        if status == "Approved":
+
+            st.success(
+                f"Status: {status}"
+            )
+
+        elif status == "Rejected":
+
+            st.error(
+                f"Status: {status}"
+            )
+
+        else:
+
+            st.warning(
+                f"Status: {status}"
+            )
+
+        # ====================================================
+        # DETAIL
+        # ====================================================
+
+        st.write(
+            f"**Nama Sarana:** {row['nama_sarana']}"
+        )
+
+        st.write(
+            f"**Nomor SP:** {row['nomor_sp']}"
+        )
+
+        st.write(
+            f"**Tanggal SP:** {row['tanggal_sp']}"
+        )
+
+        st.write(
+            f"**Alasan:** {row['alasan']}"
+        )
+
+        # ====================================================
+        # ITEM
+        # ====================================================
+
+        df_item = pd.read_sql(
+            """
+            SELECT
+                produk,
+                qty_pesanan,
+                qty_faktur
+            FROM penolakan_item
+            WHERE penolakan_id=?
+            ORDER BY id
+            """,
+            conn,
+            params=(selected_id,)
+        )
+
+        if not df_item.empty:
+
+            df_item.index = range(
+                1,
+                len(df_item) + 1
+            )
+
+            df_item.index.name = "No"
+
+            st.dataframe(
+                df_item,
+                use_container_width=True
+            )
+
+        # ====================================================
+        # GENERATE PDF
+        # ====================================================
+
+        if st.button(
+            "📄 Generate PDF",
+            key=f"generate_penolakan_{selected_id}"
+        ):
+
+            try:
+
+                item_list = []
+
+                for _, item in df_item.iterrows():
+
+                    item_list.append({
+                        "produk": item["produk"],
+                        "pesanan": item["qty_pesanan"],
+                        "faktur": item["qty_faktur"]
+                    })
+
+                pdf_path = generate_surat_penolakan(
+
+                    row["nama_sarana"],
+
+                    row["nomor_sp"],
+
+                    datetime.strptime(
+                        row["tanggal_sp"],
+                        "%Y-%m-%d"
+                    ).date(),
+
+                    datetime.strptime(
+                        row["tanggal_surat"],
+                        "%Y-%m-%d"
+                    ).date(),
+
+                    item_list,
+
+                    row["alasan"]
+                )
 
                 with open(
-                    hasil_pdf,
+                    pdf_path,
                     "rb"
                 ) as f:
 
                     pdf_data = f.read()
 
+                st.success(
+                    "✅ PDF berhasil dibuat."
+                )
+
+                # --------------------------------------------
+                # DOWNLOAD
+                # --------------------------------------------
+
                 st.download_button(
                     "⬇️ Download Surat Penolakan",
                     data=pdf_data,
                     file_name=os.path.basename(
-                        hasil_pdf
+                        pdf_path
                     ),
-                    mime="application/pdf"
+                    mime="application/pdf",
+                    key=f"download_penolakan_{selected_id}"
                 )
 
-                # ------------------------------------------------
-                # Preview di aplikasi
-                # ------------------------------------------------
-
-                import base64
+                # --------------------------------------------
+                # PREVIEW
+                # --------------------------------------------
 
                 pdf_base64 = base64.b64encode(
                     pdf_data
                 ).decode("utf-8")
 
-                pdf_display = f"""
-                <iframe
-                    src="data:application/pdf;base64,{pdf_base64}"
-                    width="100%"
-                    height="800px"
-                    style="border:1px solid #ccc;">
-                </iframe>
-                """
-
                 st.markdown(
-                    pdf_display,
+                    f"""
+                    <iframe
+                        src="data:application/pdf;base64,{pdf_base64}"
+                        width="100%"
+                        height="800px"
+                        style="border:1px solid #ccc;
+                               border-radius:8px;">
+                    </iframe>
+                    """,
                     unsafe_allow_html=True
                 )
 
             except Exception as e:
 
                 st.error(
-                    f"Gagal membuat surat: {e}"
+                    f"Gagal membuat PDF: {e}"
                 )
+
+        # ====================================================
+        # DELETE
+        # ====================================================
+
+        if status in ["Pending", "Rejected"]:
+
+            if st.button(
+                "🗑️ Hapus Data",
+                key=f"delete_penolakan_{selected_id}"
+            ):
+
+                conn.execute(
+                    """
+                    DELETE FROM penolakan_item
+                    WHERE penolakan_id=?
+                    """,
+                    (selected_id,)
+                )
+
+                conn.execute(
+                    """
+                    DELETE FROM penolakan
+                    WHERE id=?
+                    """,
+                    (selected_id,)
+                )
+
+                conn.commit()
+
+                st.success(
+                    "Data berhasil dihapus."
+                )
+
+                st.rerun()
